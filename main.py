@@ -1,6 +1,7 @@
 import os
 import requests
 import psycopg
+import time
 from dotenv import load_dotenv
 
 
@@ -21,21 +22,21 @@ leagues = {
     'FIFA World Cup' : 'WC',
     'UEFA Champions League' : 'CL',
     'Bundesliga' : 'BL1',
-    'Eredivisie' : 'DED',
-    'Campeonato Brasileiro Série A' : 'BSA',
     'La Liga' : 'PD',
+    'Premier League' : 'PL',
     'Ligue 1' : 'FL1',
-    'Championship' : 'ELC',
     'Primeira Liga' : 'PPL',
     'European Championship' : 'EC',
     'Serie A' : 'SA',
-    'Premier League' : 'PL'
+    'Campeonato Brasileiro Série A' : 'BSA',
+    'Championship' : 'ELC',
+    'Eredivisie' : 'DED'
 }
 
 def get_player_db(name):
     result = cur.execute(""" SELECT * 
                          FROM players 
-                         WHERE LOWER(name) = %s""", (name.lower(), ))
+                         WHERE LOWER(name) = LOWER(%s)""", (name.strip(), ))
     return result.fetchone()
 
 def add_player_to_db(player):
@@ -73,10 +74,30 @@ def add_player_to_db(player):
 def get_league_data(league_name):
     league_code = leagues[league_name]
     response = requests.get(f"{BASE_URL}/competitions/{league_code}/teams", headers=headers)
-    if(response.status_code != 200):
-        print("Something went wrong")
-        return None
-    return response.json()
+    if(response.status_code == 200):
+        return response.json()
+    else: 
+        print(f"Something went wrong. Error Code: {response.status_code}")
+        if(response.status_code == 429):
+            print('Retrying in 60 seconds')
+            time.sleep(60)
+        response = requests.get(f"{BASE_URL}/competitions/{league_code}/teams", headers=headers)
+        if(response.status_code == 200):
+            return response.json()
+        else: 
+            print(response.text)
+            return None
+        
+def search_player_all_leagues(name):
+    for league in leagues:
+        print(f'Checking {league}...')
+        league_data = get_league_data(league)
+        if(not league_data):
+            continue
+        player_data = get_player_api(league_data, name)
+        if(player_data is not None):
+            return player_data
+    return None
 
 def get_player_api(league, player_name):
     # leauge['teams'] because leauge is a dictionary, we have to look at the 'teams' key
@@ -106,36 +127,26 @@ def clean_up_data(player_data):
     }
     return player
 
-
-while True: 
-    league = input("What league is your player in: ")
-    if(league not in leagues):
-        print("\nLeague not valid. Choose from available leagues\n")
-        for key in leagues:
-            print(key)
-        print('\n')
-    else: 
-        league_data = get_league_data(league)
-
-        if(league_data is not None):
-            break
-
 while True: 
     name = input("Enter Player Name: ")
     # Searches database first
     player_db = get_player_db(name)
     if(player_db is not None):
-        print(f'{player_db} From db')
+        print('From db')
+        for value in player_db:
+            print(f'{value} \n') 
         break
-    else: 
-        # If player was not in database, fetches them from API
-        player_api = get_player_api(league_data, name)
-    if(not player_api):
-        print("\nPlayer not found. Please try again\n")
     else:
-        # Stores player data in database
-        player_api = clean_up_data(player_api)
-        add_player_to_db(player_api)
-        # Gets player from database
-        print(f'{get_player_db(name)} From API')
-        break 
+        player_api = search_player_all_leagues(name)
+        if(not player_api):
+            print("\nPlayer not found. Please try again\n")
+        else: 
+            # Stores player data in database
+            player_api = clean_up_data(player_api)
+            add_player_to_db(player_api)
+            # Gets player from database
+            print('From API')
+            player_api_db = get_player_db(name)
+            for value in player_api_db:
+                print(f'{value}\n')
+            break 
