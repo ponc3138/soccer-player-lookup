@@ -12,6 +12,12 @@ if(not DATABASE_URL):
 conn = psycopg.connect(os.getenv("DATABASE_URL"))
 cur = conn.cursor()
 
+def check_db_health():
+    try:
+        cur.execute("SELECT 1")
+        return True
+    except psycopg.DatabaseError: 
+        return False
 
 def get_player_db(name):
     result = cur.execute(""" SELECT * 
@@ -50,5 +56,14 @@ def add_player_to_db(player):
     )
     conn.commit()
 
-
-
+def search_players_db(name):
+    if(name is not None):
+        result = cur.execute(""" SELECT *
+                    FROM players
+                    WHERE LOWER(name) LIKE LOWER (%s)""", ('%' + name.strip() + '%', ))
+        
+        return result.fetchall()
+    else:
+        result = cur.execute(""" SELECT * 
+                             FROM players """)
+        return result.fetchall()
