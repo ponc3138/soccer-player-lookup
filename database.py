@@ -56,14 +56,39 @@ def add_player_to_db(player):
     )
     conn.commit()
 
-def search_players_db(name):
+
+def build_search_query(name = None, team = None):
+    # Base query used when no filters are provided
+    base_query  = "SELECT * FROM players"
+    conditions = []
+    paramaters = []
+
+    # Add optional name filter
     if(name is not None):
-        result = cur.execute(""" SELECT *
-                    FROM players
-                    WHERE LOWER(name) LIKE LOWER (%s)""", ('%' + name.strip() + '%', ))
+        conditions.append("LOWER(name) LIKE LOWER(%s)")
+        paramaters.append(f'%{name.strip()}%')
+
+    # Add optional team filter
+    if(team is not None):
+        conditions.append("LOWER(team_name) = LOWER(%s)")
+        paramaters.append(team.strip())
+    
+    # Return base query if no filters were given
+    if(len(conditions) == 0):
+        return (base_query, paramaters)
+    else: 
+        # Join all conditions into one WHERE clause
+        final_conditions = ' AND '.join(conditions)
+        final_query = f'{base_query} WHERE {final_conditions}'
+        return (final_query, paramaters)
         
+
+def search_players_db(query, params):
+    # Execute query with params if filters exist
+    if(len(params) > 0):
+        result = cur.execute(query, params)
         return result.fetchall()
-    else:
-        result = cur.execute(""" SELECT * 
-                             FROM players """)
+    else: 
+        # Execute base query without params
+        result = cur.execute(query)
         return result.fetchall()

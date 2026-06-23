@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from api import search_player_all_leagues, clean_up_data
-from database import get_player_db, add_player_to_db, check_db_health, search_players_db
+from database import get_player_db, add_player_to_db, check_db_health, search_players_db, build_search_query
 from pydantic import BaseModel
 from datetime import date
 
@@ -51,12 +51,16 @@ def get_player(player : str):
 
 
 @app.get("/players")
-def search_player(name: str = None):
-        result = search_players_db(name)
-        result_list = []
-        for player in result:
-            result_list.append(row_to_dict(player))
-        return {'players': result_list}
+def search_player(name: str = None, team: str = None):
+    # Build SQL query based on optional filters
+    query_params = build_search_query(name, team)
+    result = search_players_db(query_params[0], query_params[1])
+
+    # Convert database rows into JSON-friendly dictionaries
+    result_list = []
+    for player in result:
+        result_list.append(row_to_dict(player))
+    return{'players': result_list}
 
 
 @app.get("/health")
