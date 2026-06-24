@@ -18,6 +18,9 @@ class Player(BaseModel):
     team_name : str
     team_crest : str
 
+class PlayerSearchResponse(BaseModel):
+    players : list[Player]
+
 def row_to_dict(player):
     dict_player = {
         "id" : player[0],
@@ -50,10 +53,14 @@ def get_player(player : str):
     return row_to_dict(new_player)
 
 
-@app.get("/players")
-def search_player(name: str = None, team: str = None):
+@app.get("/players", response_model=PlayerSearchResponse)
+def search_player(name: str = None, 
+                  team: str = None, 
+                  nationality: str = None, 
+                  position: str = None):
+    
     # Build SQL query based on optional filters
-    query_params = build_search_query(name, team)
+    query_params = build_search_query(name, team, nationality, position)
     result = search_players_db(query_params[0], query_params[1])
 
     # Convert database rows into JSON-friendly dictionaries
