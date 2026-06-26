@@ -107,3 +107,18 @@ def search_players_db(query, params):
             # Execute query with params. Pyscopg3 handles empty params, if there is no filters
             result = cur.execute(query, params)
             return result.fetchall()
+    
+def create_user_db(email, hashed_password):
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(""" INSERT INTO users (email, hashed_password)
+                        VALUES(%s, %s)""", (email.strip().lower(), hashed_password))
+
+def get_user(email):
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            result = cur.execute(""" SELECT email, hashed_password
+                        FROM users 
+                        WHERE LOWER(email) = LOWER(%s)""", (email.strip(), ))
+            return result.fetchone()
+        
