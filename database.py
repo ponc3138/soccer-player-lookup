@@ -117,8 +117,29 @@ def create_user_db(email, hashed_password):
 def get_user(email):
     with pool.connection() as conn:
         with conn.cursor() as cur:
-            result = cur.execute(""" SELECT email, hashed_password
+            result = cur.execute(""" SELECT *
                         FROM users 
                         WHERE LOWER(email) = LOWER(%s)""", (email.strip(), ))
             return result.fetchone()
+
+def add_to_favorites_db(user_id, player_id):
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(""" INSERT INTO favorites(
+                        user_id,
+                        player_id)
+
+                        VALUES(
+                        %s,
+                        %s
+                        )""", (user_id, player_id))
+
+def get_favorites_db(user_id):
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            result = cur.execute(""" SELECT players.name 
+                        FROM favorites
+                        JOIN players ON favorites.player_id = players.id
+                        WHERE user_id = %s""", (user_id, ))
+            return result.fetchall()
         

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from api import search_player_all_leagues, clean_up_data
-from database import get_player_db, add_player_to_db, check_db_health, search_players_db, build_search_query, create_user_db, get_user
+from database import get_player_db, add_player_to_db, check_db_health, search_players_db, build_search_query, create_user_db, get_user, add_to_favorites_db, get_favorites_db
 from pydantic import BaseModel, EmailStr
 from datetime import timedelta, timezone
 import jwt
@@ -82,9 +82,28 @@ def row_to_dict(player):
 
     return dict_player
 
+def format_favorites(rows):
+    favorites = []
+    for row in rows:
+        favorites.append(row[0])
+    return favorites
+
+def get_user_id(email):
+    user_id = get_user(email)[0]
+    return user_id
+
+def get_player_id(name):
+    player_id = get_player_db(name)[0]
+    return player_id
+
+def get_current_user(token : str = Depends(oauth2_scheme)):
+    payload = decode_token(token)
+    user_id = get_user_id(payload['sub'])
+    return user_id
 
 @app.get("/players/{player}", response_model=Player)
-def get_player(player : str):
+def get_player(player : str, token : str = Depends(oauth2_scheme)):
+    decode_token(token)
     new_player = get_player_db(player)
     if(not new_player):
         api_player = search_player_all_leagues(player)
@@ -147,18 +166,33 @@ def login(form_data : OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Verifies the plain password against the stored hash
-    if(password_hash.verify(form_data.password, logged_user[1])):
+    if(password_hash.verify(form_data.password, logged_user[2])):
 
         # creates token for user, and returns it
-        token = create_token(logged_user[0])
+        token = create_token(logged_user[1])
         return {"access_token" : token, "token_type": "bearer"}
     else: 
         # Returns unauthorized if the password is incorrect
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-@app.get("/me")
-def get_current_user(token : str = Depends(oauth2_scheme)):
-    # if the token is invalid, it raises error
-    payload = decode_token(token)
-    # token is valid, and returns the 'subject' which is the email in the payload
-    return{"email" : payload['sub']}
+@app.post("/favorites/{player}")
+def add_to_favorites(player: str, user_id : int = Depends(get_current_user)):
+    player_id = get_player_id(player)
+    try:
+        add_to_favorites_db(user_id, player_id)
+        return {"success": "Player added to favorites"}
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(status_code=409, detail="Player already in favorites")
+
+@app.get("/favorites")
+def get_favorites(user_id : int = Depends(get_current_user)):
+    favorites = get_favorites_db(user_id)
+    return{"favorites" : format_favorites(favorites)}
+
+# test for JWT auth
+# @app.get("/me")
+# def get_current_user(token : str = Depends(oauth2_scheme)):
+#     # if the token is invalid, it raises error
+#     payload = decode_token(token)
+#     # token is valid, and returns the 'subject' which is the email in the payload
+#     return{"email" : payload['sub']}
