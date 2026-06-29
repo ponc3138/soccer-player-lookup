@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from api import search_player_all_leagues, clean_up_data
-from database import get_player_db, add_player_to_db, check_db_health, search_players_db, build_search_query, create_user_db, get_user, add_to_favorites_db, get_favorites_db
+from database import get_player_db, add_player_to_db, check_db_health, search_players_db, build_search_query, create_user_db, get_user_db, add_to_favorites_db, get_favorites_db, delete_favorite_db
 from pydantic import BaseModel, EmailStr
 from datetime import timedelta, timezone
 import jwt
@@ -89,12 +89,20 @@ def format_favorites(rows):
     return favorites
 
 def get_user_id(email):
-    user_id = get_user(email)[0]
-    return user_id
+    user = get_user_db(email)
+    if(user):
+        user_id = user[0]
+        return user_id
+    else: 
+        raise HTTPException(status_code=404, detail="User not found")
 
 def get_player_id(name):
-    player_id = get_player_db(name)[0]
-    return player_id
+    player = get_player_db(name)
+    if(player):
+        player_id = player[0]
+        return player_id
+    else: 
+        raise HTTPException(status_code=404, detail="Player not found in database")
 
 def get_current_user(token : str = Depends(oauth2_scheme)):
     payload = decode_token(token)
@@ -160,7 +168,7 @@ def create_user(user : User):
 @app.post("/login")
 def login(form_data : OAuth2PasswordRequestForm = Depends()):
     # Fetch user by email. says '.username' because that's the field in the request form
-    logged_user = get_user(form_data.username)
+    logged_user = get_user_db(form_data.username)
     if(logged_user is None):
         # Returns unauthorized if the email does not exist
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -188,6 +196,14 @@ def add_to_favorites(player: str, user_id : int = Depends(get_current_user)):
 def get_favorites(user_id : int = Depends(get_current_user)):
     favorites = get_favorites_db(user_id)
     return{"favorites" : format_favorites(favorites)}
+
+@app.delete("/favorites/{player}")
+def delete_favorites(player : str, user_id : int = Depends(get_current_user)):
+    player_id = get_player_id(player) 
+    if(delete_favorite_db(user_id, player_id) == 0):
+        raise HTTPException(status_code=404, detail="Player not in favorites")
+    else: 
+        return {"Success" : "Player deleted from favorites"} 
 
 # test for JWT auth
 # @app.get("/me")

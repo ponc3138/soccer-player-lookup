@@ -114,7 +114,7 @@ def create_user_db(email, hashed_password):
             cur.execute(""" INSERT INTO users (email, hashed_password)
                         VALUES(%s, %s)""", (email.strip().lower(), hashed_password))
 
-def get_user(email):
+def get_user_db(email):
     with pool.connection() as conn:
         with conn.cursor() as cur:
             result = cur.execute(""" SELECT *
@@ -142,4 +142,12 @@ def get_favorites_db(user_id):
                         JOIN players ON favorites.player_id = players.id
                         WHERE user_id = %s""", (user_id, ))
             return result.fetchall()
-        
+    
+def delete_favorite_db(user_id, player_id):
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(""" DELETE
+                        FROM favorites
+                        WHERE user_id = %s
+                        AND player_id = %s """, (user_id, player_id))
+            return cur.rowcount
